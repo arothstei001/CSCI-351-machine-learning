@@ -96,6 +96,7 @@ main(int argc, char * argv[])
     }
 
     /* Finalize computation of probabilities. */
+    /*
     for (int k = 0; k < 10; k++) {
         prob[k] /= n;
     }
@@ -103,6 +104,7 @@ main(int argc, char * argv[])
     for (int k = 0; k < 10; k++) {
         printf("prob[%d] = %lf\n", k, prob[k]);
     }
+     */
 
     /* Allocate more memory. */
     double cp[40] = { 0.0 };
@@ -116,6 +118,7 @@ main(int argc, char * argv[])
             }
         }
     }
+        /*
     for(int j=0; j<m-1; j++) {
         for(int k = 0; k < 10; k++) {
             if(div[k] != 0) {
@@ -128,6 +131,7 @@ main(int argc, char * argv[])
             }
             }
     }
+         */
 
     double pred[10];
     double max = 0.0;
@@ -143,7 +147,7 @@ main(int argc, char * argv[])
           index = k;
           max = pred[k];
       }
-      printf("(Movie 5 = %.1f) = %lf\n", (k+1)/2.0, pred[k]);
+      //printf("(Movie 5 = %.1f) = %lf\n", (k+1)/2.0, pred[k]);
 
     }
 
