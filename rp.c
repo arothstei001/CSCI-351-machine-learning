@@ -106,8 +106,10 @@ main(int argc, char * argv[])
     }
      */
 
-    /* Allocate more memory. */
+    /* Allocate memory for conditional probabilities. */
     double cp[40] = { 0.0 };
+
+    /* Compute conditional probabilities */
         for (size_t i = 0; i < n; i++) {
             for (size_t j = 0; j < m-1; j++) {
                 for(int k = 0; k < 10; k++) {
@@ -118,24 +120,16 @@ main(int argc, char * argv[])
             }
         }
     }
-        /*
-    for(int j=0; j<m-1; j++) {
-        for(int k = 0; k < 10; k++) {
-            if(div[k] != 0) {
-                printf("p(movie %d = %.1f | movie 5 = %.1f) = %lf\n", j + 1, urating[j], (k + 1) / 2.0,
-                       cp[j * 10 + k] / div[k]);
-            }
-            else{
-                printf("p(movie %d = %.1f | movie 5 = %.1f) = %lf\n", j + 1, urating[j], (k + 1) / 2.0,
-                       0.0);
-            }
-            }
-    }
-         */
 
+
+    // Allocate Memory for predictions
     double pred[10];
+
+    // Declare varibles for max prediction and the index of the max
     double max = 0.0;
     int index = 0;
+
+    // Calculate the maximum prediction
     for(int k = 0; k < 10; k++) {
         if(div[k] != 0) {
             pred[k] = prob[k] * (cp[k] / div[k]) * (cp[10 + k] / div[k]) * (cp[20 + k] / div[k]) * (cp[30 + k] / div[k]);
@@ -143,6 +137,8 @@ main(int argc, char * argv[])
         else{
             pred[k] = 0.0;
         }
+
+      /* if the current prediction is greater than the current max, the current prediction is the new max*/
       if(pred[k] > max){
           index = k;
           max = pred[k];
