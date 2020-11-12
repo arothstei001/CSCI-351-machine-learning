@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <math.h>
+#include <mpi.h>
+
 
 struct distance_metric {
   int viewer_id;
@@ -16,7 +18,18 @@ int compare(const void *a, const void *b){
 
 int main(int argc, char* argv){
     FILE *file;
-    char *filename = "ML-ratings-medium.txt";
+    char *filename = "ML-ratings-8.txt";
+
+    int ret, npes, rank;
+    MPI_Init(&argc, &argv);
+    assert(ret == MPI_SUCCESS);
+
+    ret = MPI_Comm_size(MPI_COMM_WORLD, &npes);
+    assert(ret == MPI_SUCCESS);
+  
+    ret = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    assert(ret == MPI_SUCCESS);
+
     /* open the file for writing */
     file = fopen(filename, "r");
     if (file == NULL) {
@@ -26,7 +39,12 @@ int main(int argc, char* argv){
 
     int numReviewers;
     int numMovies;
-
+    if(0 == rank){
+       for(int z=0; z<nps; z++){
+       ret = MPI_Send(ratings, npes, MPI_INT, 1, 0, MPI_COMM_WORLD);
+       assert(ret == MPI_SUCCESS);
+       }
+    }
     fscanf(file, "%d %d", &numReviewers, &numMovies);
 
     double * movies = malloc(numMovies * numReviewers * sizeof(*movies));
@@ -36,6 +54,16 @@ int main(int argc, char* argv){
     for(int i = 0; i<numReviewers; ++i) {
         for(int j = 0; j < numMovies; ++j){
             fscanf(file, "%lf", &movies[i * numMovies + j]);
+          for(int k = 0; k < npes; k++){
+            if(0 == rank){
+               ret = MPI_Send(ratings, &movies[i * numMovies + j], MPI_DOUBLE, 1, 0, MPI_COMM_WORLD);
+               assert(ret == MPI_SUCCESS);
+            }
+            else if((numReviewers/k + j) == rank){
+               ret = MPI_Recv(ratings, &movies[i * numMovies + j], MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               assert(ret == MPI_SUCCESS);
+            }
+          }
         }
     }
 
@@ -88,5 +116,8 @@ int main(int argc, char* argv){
 
     free(distances);
     free(movies);
+
+    ret = MPI_Finalize();
+    assert(ret == MPI_SUCCESS);
     return EXIT_SUCCESS;
 }
