@@ -16,6 +16,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+/* additions made in November 2020 by Andy Rothstein*/
 
 /* assert */
 #include <assert.h>
@@ -201,14 +202,14 @@ main(int argc, char * argv[])
 	      for (int r = 1; r < p; r++) {
                size_t const ln = (r + 1) * base > n ? n - r * base : base;
                printf("r: %d, ln: %d\n", r, ln);
-              double * const finalDist = calloc(n, sizeof(double));
-              ret = MPI_Recv(&finalDist[r*rn], ln, MPI_DOUBLE, r, 0, MPI_COMM_WORLD,
-	      MPI_STATUS_IGNORE);
-	      assert(MPI_SUCCESS == ret);
-              for(int i=0; i<ln; i++){
-                distance[i+r*rn].viewer_id = i+r*rn;
-                distance[i+r*rn].distance = finalDist[i+r*rn];
-                //printf("finalDist[%d] = %.1f\n", i, finalDist[i+r*rn]);
+               double * const finalDist = calloc(n, sizeof(double));
+               ret = MPI_Recv(&finalDist[r*rn], ln, MPI_DOUBLE, r, 0, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
+	       assert(MPI_SUCCESS == ret);
+               for(int i=0; i<ln; i++){
+                  distance[i+r*rn].viewer_id = i+r*rn;
+                  distance[i+r*rn].distance = finalDist[i+r*rn];
+                  //printf("finalDist[%d] = %.1f\n", i, finalDist[i+r*rn]);
              }
 	    }
 	  } else {
