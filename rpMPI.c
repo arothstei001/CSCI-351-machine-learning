@@ -16,7 +16,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-/* additions made in November 2020 by Andy Rothstein*/
 
 /* assert */
 #include <assert.h>
@@ -26,6 +25,8 @@ THE SOFTWARE.
 
 /* MPI API */
 #include <mpi.h>
+
+#include <omp.h>
 
 /* printf, fopen, fclose, fscanf, scanf */
 #include <stdio.h>
@@ -104,6 +105,7 @@ main(int argc, char * argv[])
   }
 
   /* Send number of viewers and movies to rest of processes. */
+#if 0
   if (0 == rank) {
     for (int r = 1; r < p; r++) {
       ret = MPI_Send(&n, 1, MPI_SIZE_T, r, 0, MPI_COMM_WORLD);
@@ -119,6 +121,12 @@ main(int argc, char * argv[])
         MPI_STATUS_IGNORE);
       assert(MPI_SUCCESS == ret);
   }
+#endif
+
+  ret = MPI_Bcast(&n, 1, MPI_SIZE_T, 0, MPI_COMM_WORLD);
+  assert(MPI_SUCCESS == ret);
+  ret = MPI_Bcast(&m, 1, MPI_SIZE_T, 0, MPI_COMM_WORLD);
+  assert(MPI_SUCCESS == ret);
 
   /* Compute base number of viewers. */
   size_t const base = 1 + ((n - 1) / p); // ceil(n / p)
@@ -126,13 +134,21 @@ main(int argc, char * argv[])
   /* Compute local number of viewers. */
   size_t const ln = (rank + 1) * base > n ? n - rank * base : base;
 
+int * sendcounts;
+int * displs;
+
   /* Send viewer data to rest of processes. */
   if (0 == rank) {
-    for (int r = 1; r < p; r++) {
+    sendcounts = malloc(p*sizeof(*sendcounts));
+    assert(sendcounts);
+    displs = malloc((p)*sizeof(*displs));
+    assert(displs);
+    for (int r = 0; r < p; r++) {
       size_t const rn = (r + 1) * base > n ? n - r * base : base;
-      ret = MPI_Send(rating + r * base * m, rn * m, MPI_DOUBLE, r, 0,
-        MPI_COMM_WORLD);
-      assert(MPI_SUCCESS == ret);
+      sendcounts[r] = rn*m;
+      displs[r] = r*base*m;
+      //ret = MPI_Send(rating + r * base * m, rn * m, MPI_DOUBLE, r, 0, MPI_COMM_WORLD);
+      //assert(MPI_SUCCESS == ret);
     }
   } else {
     /* Allocate memory. */
@@ -141,10 +157,17 @@ main(int argc, char * argv[])
     /* Check for success. */
     assert(rating);
 
-    ret = MPI_Recv(rating, ln * m, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
-      MPI_STATUS_IGNORE);
-    assert(MPI_SUCCESS == ret);
+    //ret = MPI_Recv(rating, ln * m, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    //assert(MPI_SUCCESS == ret);
   }
+
+  ret = MPI_Scatterv(rating, sendcounts, displs, MPI_DOUBLE, rating, ln*m, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  assert(MPI_SUCCESS == ret);
+
+  if(0 == rank){
+  free(sendcounts);
+  free(displs);
+}
 
   /* Allocate more memory. */
   double * const urating = malloc((m - 1) * sizeof(*urating));
@@ -159,7 +182,8 @@ main(int argc, char * argv[])
       fflush(stdout);
       scanf("%lf", &urating[j]);
     }
-
+  }
+#if 0
     for (int r = 1; r < p; r++) {
       ret = MPI_Send(urating, m - 1, MPI_DOUBLE, r, 0, MPI_COMM_WORLD);
       assert(MPI_SUCCESS == ret);
@@ -168,102 +192,114 @@ main(int argc, char * argv[])
     ret = MPI_Recv(urating, m - 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
       MPI_STATUS_IGNORE);
     assert(MPI_SUCCESS == ret);
-  }
+#endif
+  //}
+  ret = MPI_Bcast(urating, m-1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  assert(MPI_SUCCESS == ret);
 
-//#if 0
   /* Allocate more memory. */
-  struct distance_metric * const distance = calloc(n, sizeof(*distance));
+  double * distance;
+ 
+  if (0 == rank) {
+    distance = calloc(n, sizeof(*distance));
+  } else {
+    distance = calloc(ln, sizeof(*distance));
+  }
 
   /* Check for success. */
   assert(distance);
 
   /* Compute distances. */
-
-       size_t const rn = (rank + 1) * base > n ? n - rank * base : base; // r replaced by rank
-       double * const dist = calloc(rn, sizeof(double));
-        for (size_t i = 0; i < rn; i++) {// r replaced by rank
-          //distance[i].viewer_id = i;
-        for (size_t j = 0; j < m - 1; j++) {
-          //distance[i].distance += fabs(urating[j] - rating[i*m+j]);
-          dist[i] += fabs(urating[j] - rating[i*m+j]);
-        }
-      }
-         
-
-      
-      
-
-	  if (0 == rank) {
-             for(int i=0; i<rn; i++){
-                distance[i+rank*rn].viewer_id = i+rank*rn;
-                distance[i+rank*rn].distance = dist[i+rank*rn];
-                //printf("finalDist[%d] = %.1f\n", i, dist[i+rank*rn]);
-              }
-	      for (int r = 1; r < p; r++) {
-               size_t const ln = (r + 1) * base > n ? n - r * base : base;
-               printf("r: %d, ln: %d\n", r, ln);
-               double * const finalDist = calloc(n, sizeof(double));
-               ret = MPI_Recv(&finalDist[r*rn], ln, MPI_DOUBLE, r, 0, MPI_COMM_WORLD,
-	       MPI_STATUS_IGNORE);
-	       assert(MPI_SUCCESS == ret);
-               for(int i=0; i<ln; i++){
-                  distance[i+r*rn].viewer_id = i+r*rn;
-                  distance[i+r*rn].distance = finalDist[i+r*rn];
-                  //printf("finalDist[%d] = %.1f\n", i, finalDist[i+r*rn]);
-             }
-	    }
-	  } else {
-	      ret = MPI_Send(dist, ln, MPI_DOUBLE, 0, 0,
-	      MPI_COMM_WORLD);
-	      assert(MPI_SUCCESS == ret);
-	  }
-
-if(0==rank){
-
-
-//  for(int i=0; i<n; i++){
-//   printf("finalDist[%d] = %.1f\n", i, distance[i].distance);
- // }
-
-
-
-  /* Sort distances. */
-  qsort(distance, n, sizeof(*distance), cmp);
-//if 0
-  /* Get user input. */
-  printf("Enter the number of similar viewers to report: \n");
-  scanf("%zu", &k);
-
-  /* Output k viewers who are least different from the user. */
-  printf("Viewer ID   Movie five   Distance\n");
-  printf("---------------------------------\n");
-
-  for (size_t i = 0; i < k; i++) {
-    printf("%9zu   %10.1lf   %8.1lf\n", distance[i].viewer_id + 1,
-      rating[distance[i].viewer_id * m + 4], distance[i].distance);
+  double ts = omp_get_wtime();
+  for (size_t i = 0; i < ln; i++) {
+    for (size_t j = 0; j < m - 1; j++) {
+      distance[i] += fabs(urating[j] - rating[i * m + j]);
+    }
   }
+      double te = omp_get_wtime();
+      double local_elapsed = te-ts;
+      double global_elapsed;
+      ret = MPI_Reduce(&local_elapsed, &global_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      assert(MPI_SUCCESS == ret); 
 
-  printf("---------------------------------\n");
+       if(0 ==rank){
+          printf("Elapsed time: %f\n", global_elapsed);
+       }
 
-  /* Compute the average to make the prediction. */
-  double sum = 0.0;
-  for (size_t i = 0; i < k; i++) {
-    sum += rating[distance[i].viewer_id * m + 4];
-  }
+int * rcounts;
+int * displsR;
 
-  /* Output prediction. */
-  printf("The predicted rating for movie five is %.1lf.\n", sum / k);
+  if (0 == rank) {
+    rcounts = malloc(p*sizeof(*rcounts));
+    assert(rcounts);
+    displsR = malloc(p*sizeof(*displsR));
+    assert(displsR);
+    for (int r = 0; r < p; r++) {
+      size_t const rn = (r + 1) * base > n ? n - r * base : base;
+      rcounts[r] = rn;
+      displsR[r] = r*base;
+      //ret = MPI_Recv(distance + r * base, rn, MPI_DOUBLE, r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      //assert(MPI_SUCCESS == ret);
+    }
+  } //else {
+    //ret = MPI_Send(distance, ln, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    //assert(MPI_SUCCESS == ret);
+  //}
+  ret = MPI_Gatherv(distance, ln, MPI_DOUBLE, distance, rcounts, displsR, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  assert(MPI_SUCCESS == ret);
 
-//endif
+  if(0 == rank){
+  free(rcounts);
+  free(displsR);
 }
+
+  if (0 == rank) {
+    struct distance_metric * distance2 = malloc(n * sizeof(*distance2));
+    assert(distance2);
+
+    for (size_t i = 0; i < n; i++) {
+      distance2[i].viewer_id = i;
+      distance2[i].distance = distance[i];
+    }
+
+    /* Sort distances. */
+    qsort(distance2, n, sizeof(*distance2), cmp);
+
+    /* Get user input. */
+    printf("Enter the number of similar viewers to report: ");
+    fflush(stdout);
+    scanf("%zu", &k);
+
+    /* Output k viewers who are least different from the user. */
+    printf("Viewer ID   Movie five   Distance\n");
+    printf("---------------------------------\n");
+
+    for (size_t i = 0; i < k; i++) {
+      printf("%9zu   %10.1lf   %8.1lf\n", distance2[i].viewer_id + 1,
+        rating[distance2[i].viewer_id * m + 4], distance2[i].distance);
+    }
+
+    printf("---------------------------------\n");
+
+    /* Compute the average to make the prediction. */
+    double sum = 0.0;
+    for (size_t i = 0; i < k; i++) {
+      sum += rating[distance2[i].viewer_id * m + 4];
+    }
+
+    /* Output prediction. */
+    printf("The predicted rating for movie five is %.1lf.\n", sum / k);
+
+    free(distance2);
+  }
+
   /* Deallocate memory. */
   free(rating);
   free(urating);
-  free(dist);
   free(distance);
 
   ret = MPI_Finalize();
   assert(MPI_SUCCESS == ret);
 
   return EXIT_SUCCESS;
-}
+} 
