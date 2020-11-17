@@ -16,6 +16,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+/* 
+Additions made by Andy Rothstein November 2020
+Converted All point to point communications into collective communications
+3 broadcasts, a scatterv, and a gatherv
+ */
 
 /* assert */
 #include <assert.h>
